@@ -130,8 +130,7 @@
                     'required': '@?editorRequired',
                     'readOnly': '&?',
                     'errorClass': '@?',
-                    'ngModel': '=',
-                    'placeholder' : '='
+                    'ngModel': '='
                 },
                 require: 'ngModel',
                 restrict: 'E',
