@@ -1,418 +1,409 @@
-/* globals define, angular */
-(function (root, factory) {
-  if (typeof define === 'function' && define.amd) {
-    define(['quill'], factory)
-  } else if (typeof module !== 'undefined' && typeof exports === 'object') {
-    module.exports = factory(require('quill'))
-  } else {
-    root.Requester = factory(root.Quill)
-  }
-}(this, function (Quill) {
-  'use strict'
+/*global Quill*/
+(function () {
+    'use strict';
+    var app;
+    // declare ngQuill module
+    app = angular.module('ngQuill', []);
 
-  var app
-  // declare ngQuill module
-  app = angular.module('ngQuill', ['ngSanitize'])
+    app.provider('ngQuillConfig', function () {
+        var config = {
+            // default fontFamilies
+            fontSizes: [{
+                size: '10px',
+                alias: 'small'
+            }, {
+                size: '13px',
+                alias: 'normal'
+            }, {
+                size: '18px',
+                alias: 'large'
+            }, {
+                size: '32px',
+                alias: 'huge'
+            }],
+            // default fontFamilies
+            fontFamilies: [{
+                label: 'Sans Serif',
+                alias: 'sans-serif'
+            }, {
+                label: 'Serif',
+                alias: 'serif'
+            }, {
+                label: 'Monospace',
+                alias: 'monospace'
+            }],
+            // formats list
+            formats: [
+                'link',
+                'image',
+                'bold',
+                'italic',
+                'underline',
+                'strike',
+                'color',
+                'background',
+                'align',
+                'font',
+                'size',
+                'bullet',
+                'list'
+            ],
+            // default translations
+            translations: {
+                font: 'Font',
+                size: 'Size',
+                small: 'Small',
+                normal: 'Normal',
+                large: 'Large',
+                huge: 'Huge',
+                bold: 'Bold',
+                italic: 'Italic',
+                underline: 'Underline',
+                strike: 'Strikethrough',
+                textColor: 'Text Color',
+                backgroundColor: 'Background Color',
+                list: 'List',
+                bullet: 'Bullet',
+                textAlign: 'Text Align',
+                left: 'Left',
+                center: 'Center',
+                right: 'Right',
+                justify: 'Justify',
+                link: 'Link',
+                image: 'Image',
+                visitURL: 'Visit URL',
+                change: 'Change',
+                done: 'Done',
+                cancel: 'Cancel',
+                remove: 'Remove',
+                insert: 'Insert',
+                preview: 'Preview'
+            }
+        };
 
-  app.provider('ngQuillConfig', function () {
-    var config = {
-      modules: {
-        toolbar: [
-          ['bold', 'italic', 'underline', 'strike'],        // toggled buttons
-          ['blockquote', 'code-block'],
+        this.set = function (fontSizes, fontFamilies) {
+            if (fontSizes) {
+                config.fontSizes = fontSizes;
+            }
+            if (fontFamilies) {
+                config.fontFamilies = fontFamilies;
+            }
+        };
 
-          [{ 'header': 1 }, { 'header': 2 }],               // custom button values
-          [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-          [{ 'script': 'sub' }, { 'script': 'super' }],      // superscript/subscript
-          [{ 'indent': '-1' }, { 'indent': '+1' }],          // outdent/indent
-          [{ 'direction': 'rtl' }],                         // text direction
+        this.$get = function () {
+            return config;
+        };
+    });
 
-          [{ 'size': ['small', false, 'large', 'huge'] }],  // custom dropdown
-          [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+    app.service('ngQuillService', ['ngQuillConfig', function (ngQuillConfig) {
+        // validate formats
+        this.validateFormats = function (checkFormats) {
+            var correctFormats = [],
+                i = 0;
 
-          [{ 'color': [] }, { 'background': [] }],          // dropdown with defaults from theme
-          [{ 'font': [] }],
-          [{ 'align': [] }],
-
-          ['clean'],                                         // remove formatting button
-
-          ['link', 'image', 'video']                         // link and image, video
-        ]
-      },
-      bounds: document.body,
-      debug: 'warn',
-      theme: 'snow',
-      scrollingContainer: null,
-      placeholder: 'Insert text here ...',
-      readOnly: false,
-      trackChanges: 'user',
-      preserveWhitespace: false
-    }
-
-    this.set = function (customConf) {
-      customConf = customConf || {}
-
-      if (customConf.modules) {
-        config.modules = customConf.modules
-      }
-      if (customConf.theme) {
-        config.theme = customConf.theme
-      }
-      if (customConf.placeholder !== null && customConf.placeholder !== undefined) {
-        config.placeholder = customConf.placeholder.trim()
-      }
-      if (customConf.readOnly) {
-        config.readOnly = customConf.readOnly
-      }
-      if (customConf.formats) {
-        config.formats = customConf.formats
-      }
-      if (customConf.bounds) {
-        config.bounds = customConf.bounds
-      }
-      if (customConf.scrollingContainer) {
-        config.scrollingContainer = customConf.scrollingContainer
-      }
-      if (customConf.debug || customConf.debug === false) {
-        config.debug = customConf.debug
-      }
-      if (customConf.trackChanges && ['all', 'user'].indexOf(customConf.trackChanges) > -1) {
-        config.trackChanges = customConf.trackChanges
-      }
-      if (customConf.preserveWhitespace) {
-        config.preserveWhitespace = true
-      }
-    }
-
-    this.$get = function () {
-      return config
-    }
-  })
-
-  app.component('ngQuillEditor', {
-    bindings: {
-      'modules': '<modules',
-      'theme': '@?',
-      'readOnly': '<?',
-      'format': '@?',
-      'debug': '@?',
-      'formats': '<?',
-      'placeholder': '<?',
-      'bounds': '<?',
-      'scrollingContainer': '<?',
-      'strict': '<?',
-      'onEditorCreated': '&?',
-      'onContentChanged': '&?',
-      'onBlur': '&?',
-      'onFocus': '&?',
-      'onSelectionChanged': '&?',
-      'ngModel': '<',
-      'maxLength': '<',
-      'minLength': '<',
-      'customOptions': '<?',
-      'styles': '<?',
-      'sanitize': '<?',
-      'customToolbarPosition': '@?',
-      'trackChanges': '@?',
-      'preserveWhitespace': '<?',
-    },
-    require: {
-      ngModelCtrl: 'ngModel'
-    },
-    transclude: {
-      'toolbar': '?ngQuillToolbar'
-    },
-    template: '<div class="ng-hide" ng-show="$ctrl.ready"><ng-transclude ng-transclude-slot="toolbar"></ng-transclude></div>',
-    controller: ['$scope', '$element', '$sanitize', '$timeout', '$transclude', 'ngQuillConfig', function ($scope, $element, $sanitize, $timeout, $transclude, ngQuillConfig) {
-      var config = {}
-      var content
-      var editorElem
-      var format = 'html'
-      var editorChanged = false
-      var editor
-      var placeholder = ngQuillConfig.placeholder
-      var textChangeEvent
-      var selectionChangeEvent
-
-      this.setter = function (value) {
-        if (format === 'html') {
-          return editor.clipboard.convert(this.sanitize ? $sanitize(value) : value)
-        } else if (this.format === 'json') {
-          try {
-            return JSON.parse(value)
-          } catch (e) {
-            return [{ insert: value }]
-          }
-        }
-
-        return value
-      }
-
-      this.validate = function (text) {
-        var textLength = text.trim().length
-
-        if (this.maxLength) {
-          if (textLength > this.maxLength) {
-            this.ngModelCtrl.$setValidity('maxlength', false)
-          } else {
-            this.ngModelCtrl.$setValidity('maxlength', true)
-          }
-        }
-
-        if (this.minLength > 0) {
-          if (textLength < this.minLength && textLength) {
-            this.ngModelCtrl.$setValidity('minlength', false)
-          } else {
-            this.ngModelCtrl.$setValidity('minlength', true)
-          }
-        }
-      }
-
-      this.$onChanges = function (changes) {
-        if (changes.ngModel) {
-          content = changes.ngModel.currentValue
-
-          if (editor) {
-            if (!editorChanged) {
-              if (content) {
-                if (changes.ngModel.currentValue !== changes.ngModel.previousValue) {
-                  if (this.format === 'text') {
-                    editor.setText(content)
-                  } else {
-                    editor.setContents(
-                      this.setter(content)
-                    )
-                  }
+            for (i; i < checkFormats.length; i = i + 1) {
+                if (ngQuillConfig.formats.indexOf(checkFormats[i]) !== -1) {
+                    correctFormats.push(checkFormats[i]);
                 }
-              } else {
-                editor.setText('')
-              }
             }
-            editorChanged = false
-          }
-        }
 
-        if (editor && changes.readOnly) {
-          editor.enable(!changes.readOnly.currentValue)
-        }
+            return correctFormats;
+        };
+    }]);
 
-        if (editor && changes.placeholder) {
-          editor.root.dataset.placeholder = changes.placeholder.currentValue
-        }
+    app.directive('ngQuillEditor', [
+        '$timeout',
+        'ngQuillService',
+        'ngQuillConfig',
+        function ($timeout, ngQuillService, ngQuillConfig) {
+            return {
+                scope: {
+                    'toolbarEntries': '@?',
+                    'toolbar': '@?',
+                    'showToolbar': '=?',
+                    'fontfamilyOptions': '=?',
+                    'fontsizeOptions': '=?',
+                    'linkTooltip': '@?',
+                    'imageTooltip': '@?',
+                    'theme': '@?',
+                    'translations': '=?',
+                    'required': '@?editorRequired',
+                    'readOnly': '&?',
+                    'errorClass': '@?',
+                    'ngModel': '=',
+                    'placeholder' : '='
+                },
+                require: 'ngModel',
+                restrict: 'E',
+                templateUrl: 'ngQuill/template.html',
+                link: function ($scope, element, attr, ngModel) {
+                    var config = {
+                            theme: $scope.theme || 'snow',
+                            readOnly: $scope.readOnly || false,
+                            formats: $scope.toolbarEntries ? ngQuillService.validateFormats($scope.toolbarEntries.split(' ')) : ngQuillConfig.formats,
+                            modules: {}
+                        },
+                        changed = false,
+                        editor,
+                        setClass = function () {
+                            // if editor content length <= 1 and content is required -> add custom error clas and ng-invalid
+                            if ($scope.required && (!$scope.modelLength || $scope.modelLength <= 1)) {
+                                element.addClass('ng-invalid');
+                                element.removeClass('ng-valid');
+                                // if form was reseted and input field set to empty
+                                if ($scope.errorClass && changed && element.hasClass('ng-dirty')) {
+                                    element.children().addClass($scope.errorClass);
+                                }
+                            } else { // set to valid
+                                element.removeClass('ng-invalid');
+                                element.addClass('ng-valid');
+                                if ($scope.errorClass) {
+                                    element.children().removeClass($scope.errorClass);
+                                }
+                            }
+                        };
 
-        if (editor && editorElem && changes.styles) {
-          var currentStyling = changes.styles.currentValue
-          var previousStyling = changes.styles.previousValue
+                    // set required flag (if text editor is required)
+                    if ($scope.required && $scope.required === 'true') {
+                        $scope.required = true;
+                    } else {
+                        $scope.required = false;
+                    }
 
-          if (previousStyling) {
-            for (var key in previousStyling) {
-              editorElem.style[key] = ''
-            }
-          }
-          if (currentStyling) {
-            for (var activeStyle in currentStyling) {
-              if (currentStyling.hasOwnProperty(activeStyle)) {
-                editorElem.style[activeStyle] = currentStyling[activeStyle]
-              }
-            }
-          }
-        }
-      }
+                    // overwrite global settings dynamically
+                    $scope.fontsizeOptions = $scope.fontsizeOptions || ngQuillConfig.fontSizes;
+                    $scope.fontfamilyOptions = $scope.fontfamilyOptions || ngQuillConfig.fontFamilies;
 
-      this.$onInit = function () {
-        if (this.placeholder !== null && this.placeholder !== undefined) {
-          placeholder = this.placeholder.trim()
-        }
+                    // default translations
+                    $scope.dict = ngQuillConfig.translations;
 
-        if (this.format && ['object', 'html', 'text', 'json'].indexOf(this.format) > -1) {
-          format = this.format
-        }
+                    $scope.shouldShow = function (formats) {
+                        var okay = false,
+                            i = 0;
+                        for (i; i < formats.length; i = i + 1) {
+                            if (config.formats.indexOf(formats[i]) !== -1) {
+                                okay = true;
+                                break;
+                            }
+                        }
 
-        config = {
-          theme: this.theme || ngQuillConfig.theme,
-          readOnly: this.readOnly || ngQuillConfig.readOnly,
-          modules: this.modules || ngQuillConfig.modules,
-          formats: this.formats || ngQuillConfig.formats,
-          placeholder: placeholder,
-          bounds: this.bounds || ngQuillConfig.bounds,
-          strict: this.strict,
-          scrollingContainer: this.scrollingContainer || ngQuillConfig.scrollingContainer,
-          debug: this.debug || this.debug === false ? this.debug : ngQuillConfig.debug
-        }
-      }
+                        return okay;
+                    };
 
-      this.$postLink = function () {
-        // create quill instance after dom is rendered
-        $timeout(function () {
-          this._initEditor()
-        }.bind(this), 0)
-      }
+                    // if there are custom translations
+                    if ($scope.translations) {
+                        $scope.dict = $scope.translations;
+                    }
 
-      this.$onDestroy = function () {
-        editor = null
+                    // add tooltip modules
+                    if ($scope.linkTooltip && $scope.linkTooltip === 'true') {
+                        config.modules['link-tooltip'] = {
+                            template: '<span class="title">' + $scope.dict.visitURL + ':&nbsp;</span>'
+                                        + '<a href="#" class="url" target="_blank" href="about:blank"></a>'
+                                        + '<input class="input" type="text">'
+                                        + '<span>&nbsp;&#45;&nbsp;</span>'
+                                        + '<a href="javascript:;" class="change">' + $scope.dict.change + '</a>'
+                                        + '<a href="javascript:;" class="remove">' + $scope.dict.remove + '</a>'
+                                        + '<a href="javascript:;" class="done">' + $scope.dict.done + '</a>'
+                        };
+                    }
+                    if ($scope.imageTooltip && $scope.imageTooltip === 'true') {
+                        config.modules['image-tooltip'] = {
+                            template: '<input class="input" type="textbox">'
+                                        + '<div class="preview">'
+                                        + '    <span>' + $scope.dict.preview + '</span>'
+                                        + '</div>'
+                                        + '<a href="javascript:;" class="cancel">' + $scope.dict.cancel + '</a>'
+                                        + '<a href="javascript:;" class="insert">' + $scope.dict.insert + '</a>'
+                        };
+                    }
 
-        if (textChangeEvent) {
-          textChangeEvent.removeListener('text-change')
-        }
-        if (selectionChangeEvent) {
-          selectionChangeEvent.removeListener('selection-change')
-        }
-      }
+                    // init editor
+                    editor = new Quill(element[0].querySelector('.advanced-wrapper .editor-container'), config);
 
-      this._initEditor = function () {
-        var $editorElem = this.preserveWhitespace ? angular.element('<pre></pre>') : angular.element('<div></div>')
-        var container = $element.children()
+                    // add toolbar afterwards with a timeout to be sure that translations has replaced.
+                    if ($scope.toolbar && $scope.toolbar === 'true') {
+                        $timeout(function () {
+                            editor.addModule('toolbar', {
+                                container: element[0].querySelector('.advanced-wrapper .toolbar-container')
+                            });
+                            $scope.toolbarCreated = true;
+                            $scope.showToolbar = $scope.hasOwnProperty('showToolbar') ? $scope.showToolbar : true;
+                        }, 0);
+                    }
 
-        editorElem = $editorElem[0]
+                    // provide event to get recognized when editor is created -> pass editor object.
+                    $timeout(function(){
+                       $scope.$emit('editorCreated', editor);
+                    });
 
-        if (config.bounds === 'self') {
-          config.bounds = editorElem
-        }
+                    // set initial value
+                    $scope.$watch(function () {
+                        return $scope.ngModel;
+                    }, function (newText) {
+                        if (newText !== undefined && !changed) {
+                            // Set initial value;
+                            editor.setHTML(newText);
+                        }
+                    });
 
-        // set toolbar to custom one
-        if ($transclude.isSlotFilled('toolbar')) {
-          config.modules.toolbar = container.find('ng-quill-toolbar').children()[0]
-        }
+                    // toggle readOnly
+                    if ($scope.readOnly) {
+                        $scope.$watch(function () {
+                            return $scope.readOnly();
+                        }, function (readOnly) {
+                            editor.editor[readOnly ? 'disable' : 'enable']();
+                        });
+                    }
 
-        if (this.styles) {
-          for (var activeStyle in this.styles) {
-            if (this.styles.hasOwnProperty(activeStyle)) {
-              editorElem.style[activeStyle] = this.styles[activeStyle]
-            }
-          }
-        }
+                    $scope.regEx = /^([2-9]|[1-9][0-9]+)$/;
 
-        if (!this.customToolbarPosition || this.customToolbarPosition === 'top') {
-          container.append($editorElem)
-        } else {
-          container.prepend($editorElem)
-        }
+                    // Update model on textchange
+                    editor.on('text-change', function () {
+                        var oldChange = changed;
+                        changed = true;
+                        $timeout(function () {
+                            // Calculate content length
+                            $scope.modelLength = editor.getLength();
+                            // Check if error class should be set
+                            if (oldChange) {
+                                setClass();
+                            }
+                            // Set new model value
+                            ngModel.$setViewValue(editor.getHTML());
+                        }, 0);
+                    });
 
-        if (this.customOptions) {
-          this.customOptions.forEach(function (customOption) {
-            var newCustomOption = Quill.import(customOption.import)
-            newCustomOption.whitelist = customOption.whitelist
-            if (customOption.toRegister) {
-              newCustomOption[customOption.toRegister.key] = customOption.toRegister.value
-            }
-            Quill.register(newCustomOption, true)
-          })
-        }
-
-        editor = new Quill(editorElem, config)
-
-        this.ready = true
-
-        // mark model as touched if editor lost focus
-        selectionChangeEvent = editor.on('selection-change', function (range, oldRange, source) {
-          if (range === null && this.onBlur) {
-            this.onBlur({
-              editor: editor,
-              source: source
-            })
-          } else if (oldRange === null && this.onFocus) {
-            this.onFocus({
-              editor: editor,
-              source: source
-            })
-          }
-
-          if (this.onSelectionChanged) {
-            this.onSelectionChanged({
-              editor: editor,
-              oldRange: oldRange,
-              range: range,
-              source: source
-            })
-          }
-
-          if (range) {
-            return
-          }
-          $scope.$applyAsync(function () {
-            this.ngModelCtrl.$setTouched()
-          }.bind(this))
-        }.bind(this))
-
-        // update model if text changes
-        textChangeEvent = editor.on('text-change', function (delta, oldDelta, source) {
-          var html = editorElem.querySelector('.ql-editor').innerHTML
-          var text = editor.getText()
-          var content = editor.getContents()
-
-          var emptyModelTag = ['<' + editor.root.firstChild.localName + '>', '</' + editor.root.firstChild.localName + '>']
-
-          if (html === emptyModelTag[0] + '<br>' + emptyModelTag[1]) {
-            html = null
-          }
-          this.validate(text)
-
-          $scope.$applyAsync(function () {
-            var trackChanges = this.trackChanges || ngQuillConfig.trackChanges
-            if (source === 'user' || trackChanges && trackChanges === 'all') {
-              editorChanged = true
-              if (format === 'text') {
-                // if nothing changed $ngOnChanges is not called again
-                // But we have to reset editorChanged flag
-                if (text === this.ngModelCtrl.$viewValue) {
-                  editorChanged = false
-                } else {
-                  this.ngModelCtrl.$setViewValue(text)
+                    // Clean-up
+                    element.on('$destroy', function () {
+                        editor.destroy();
+                    });
                 }
-              } else if (format === 'object') {
-                this.ngModelCtrl.$setViewValue(content)
-              } else if (this.format === 'json') {
-                try {
-                  this.ngModelCtrl.$setViewValue(JSON.stringify(content))
-                } catch (e) {
-                  this.ngModelCtrl.$setViewValue(text)
-                }
-              } else {
-                this.ngModelCtrl.$setViewValue(html)
-              }
-            }
-
-            if (this.onContentChanged) {
-              this.onContentChanged({
-                editor: editor,
-                html: html,
-                text: text,
-                content: content,
-                delta: delta,
-                oldDelta: oldDelta,
-                source: source
-              })
-            }
-          }.bind(this))
-        }.bind(this))
-
-        // set initial content
-        if (content) {
-          if (format === 'text') {
-            editor.setText(content, 'silent')
-          } else if (format === 'object') {
-            editor.setContents(content, 'silent')
-          } else if (format === 'json') {
-            try {
-              editor.setContents(JSON.parse(content), 'silent')
-            } catch (e) {
-              editor.setText(content, 'silent')
-            }
-          } else {
-            editor.setContents(editor.clipboard.convert(this.sanitize ? $sanitize(content) : content, 'silent'))
-          }
-
-          editor.history.clear()
+            };
         }
-        this.validate(editor.getText())
+    ]);
 
-        // provide event to get informed when editor is created -> pass editor object.
-        if (this.onEditorCreated) {
-          this.onEditorCreated({editor: editor})
+    app.run([
+        '$templateCache',
+        '$rootScope',
+        '$window',
+        function ($templateCache) {
+            // put template in template cache
+            return $templateCache.put('ngQuill/template.html',
+                '<div id="content-container">' +
+                    '<div class="advanced-wrapper">' +
+                        '<div class="toolbar toolbar-container" ng-if="toolbar" ng-show="toolbarCreated && showToolbar">' +
+                            '<span class="ql-format-group" ng-if="shouldShow([\'font\', \'size\'])">' +
+                                '<select title="{{dict.font}}" class="ql-font" ng-if="shouldShow([\'font\'])">' +
+                                    '<option ng-repeat="option in fontfamilyOptions" value="{{option.alias}}">{{option.label}}</option>' +
+                                '</select>' +
+                                '<select title="{{dict.size}}" class="ql-size" ng-if="shouldShow([\'size\'])">' +
+                                    '<option ng-repeat="option in fontsizeOptions" ng-selected="$index === 1" value="{{option.size}}">{{dict[option.alias] || option.alias}}</option>' +
+                                '</select>' +
+                            '</span>' +
+                            '<span class="ql-format-group" ng-if="shouldShow([\'bold\', \'italic\', \'underline\', \'strike\'])">' +
+                                '<span title="{{dict.bold}}" class="ql-format-button ql-bold" ng-if="shouldShow([\'bold\'])"></span>' +
+                                '<span title="{{dict.italic}}" class="ql-format-button ql-italic" ng-if="shouldShow([\'italic\'])"></span>' +
+                                '<span title="{{dict.underline}}" class="ql-format-button ql-underline" ng-if="shouldShow([\'underline\'])"></span>' +
+                                '<span title="{{dict.strike}}" class="ql-format-button ql-strike" ng-if="shouldShow([\'strike\'])"></span>' +
+                            '</span>' +
+                            '<span class="ql-format-group" ng-if="shouldShow([\'color\', \'background\'])">' +
+                                '<select title="{{dict.textColor}}" class="ql-color" ng-if="shouldShow([\'color\'])">' +
+                                    '<option value="rgb(0, 0, 0)" label="rgb(0, 0, 0)" selected=""></option>' +
+                                    '<option value="rgb(230, 0, 0)" label="rgb(230, 0, 0)"></option>' +
+                                    '<option value="rgb(255, 153, 0)" label="rgb(255, 153, 0)"></option>' +
+                                    '<option value="rgb(255, 255, 0)" label="rgb(255, 255, 0)"></option>' +
+                                    '<option value="rgb(0, 138, 0)" label="rgb(0, 138, 0)"></option>' +
+                                    '<option value="rgb(0, 102, 204)" label="rgb(0, 102, 204)"></option>' +
+                                    '<option value="rgb(153, 51, 255)" label="rgb(153, 51, 255)"></option>' +
+                                    '<option value="rgb(255, 255, 255)" label="rgb(255, 255, 255)"></option>' +
+                                    '<option value="rgb(250, 204, 204)" label="rgb(250, 204, 204)"></option>' +
+                                    '<option value="rgb(255, 235, 204)" label="rgb(255, 235, 204)"></option>' +
+                                    '<option value="rgb(255, 255, 204)" label="rgb(255, 255, 204)"></option>' +
+                                    '<option value="rgb(204, 232, 204)" label="rgb(204, 232, 204)"></option>' +
+                                    '<option value="rgb(204, 224, 245)" label="rgb(204, 224, 245)"></option>' +
+                                    '<option value="rgb(235, 214, 255)" label="rgb(235, 214, 255)"></option>' +
+                                    '<option value="rgb(187, 187, 187)" label="rgb(187, 187, 187)"></option>' +
+                                    '<option value="rgb(240, 102, 102)" label="rgb(240, 102, 102)"></option>' +
+                                    '<option value="rgb(255, 194, 102)" label="rgb(255, 194, 102)"></option>' +
+                                    '<option value="rgb(255, 255, 102)" label="rgb(255, 255, 102)"></option>' +
+                                    '<option value="rgb(102, 185, 102)" label="rgb(102, 185, 102)"></option>' +
+                                    '<option value="rgb(102, 163, 224)" label="rgb(102, 163, 224)"></option>' +
+                                    '<option value="rgb(194, 133, 255)" label="rgb(194, 133, 255)"></option>' +
+                                    '<option value="rgb(136, 136, 136)" label="rgb(136, 136, 136)"></option>' +
+                                    '<option value="rgb(161, 0, 0)" label="rgb(161, 0, 0)"></option>' +
+                                    '<option value="rgb(178, 107, 0)" label="rgb(178, 107, 0)"></option>' +
+                                    '<option value="rgb(178, 178, 0)" label="rgb(178, 178, 0)"></option>' +
+                                    '<option value="rgb(0, 97, 0)" label="rgb(0, 97, 0)"></option>' +
+                                    '<option value="rgb(0, 71, 178)" label="rgb(0, 71, 178)"></option>' +
+                                    '<option value="rgb(107, 36, 178)" label="rgb(107, 36, 178)"></option>' +
+                                    '<option value="rgb(68, 68, 68)" label="rgb(68, 68, 68)"></option>' +
+                                    '<option value="rgb(92, 0, 0)" label="rgb(92, 0, 0)"></option>' +
+                                    '<option value="rgb(102, 61, 0)" label="rgb(102, 61, 0)"></option>' +
+                                    '<option value="rgb(102, 102, 0)" label="rgb(102, 102, 0)"></option>' +
+                                    '<option value="rgb(0, 55, 0)" label="rgb(0, 55, 0)"></option>' +
+                                    '<option value="rgb(0, 41, 102)" label="rgb(0, 41, 102)"></option>' +
+                                    '<option value="rgb(61, 20, 102)" label="rgb(61, 20, 102)"></option>' +
+                                '</select>' +
+                                '<select title="{{dict.backgroundColor}}" class="ql-background" ng-if="shouldShow([\'background\'])">' +
+                                    '<option value="rgb(0, 0, 0)" label="rgb(0, 0, 0)"></option>' +
+                                    '<option value="rgb(230, 0, 0)" label="rgb(230, 0, 0)"></option>' +
+                                    '<option value="rgb(255, 153, 0)" label="rgb(255, 153, 0)"></option>' +
+                                    '<option value="rgb(255, 255, 0)" label="rgb(255, 255, 0)"></option>' +
+                                    '<option value="rgb(0, 138, 0)" label="rgb(0, 138, 0)"></option>' +
+                                    '<option value="rgb(0, 102, 204)" label="rgb(0, 102, 204)"></option>' +
+                                    '<option value="rgb(153, 51, 255)" label="rgb(153, 51, 255)"></option>' +
+                                    '<option value="rgb(255, 255, 255)" label="rgb(255, 255, 255)" selected=""></option>' +
+                                    '<option value="rgb(250, 204, 204)" label="rgb(250, 204, 204)"></option>' +
+                                    '<option value="rgb(255, 235, 204)" label="rgb(255, 235, 204)"></option>' +
+                                    '<option value="rgb(255, 255, 204)" label="rgb(255, 255, 204)"></option>' +
+                                    '<option value="rgb(204, 232, 204)" label="rgb(204, 232, 204)"></option>' +
+                                    '<option value="rgb(204, 224, 245)" label="rgb(204, 224, 245)"></option>' +
+                                    '<option value="rgb(235, 214, 255)" label="rgb(235, 214, 255)"></option>' +
+                                    '<option value="rgb(187, 187, 187)" label="rgb(187, 187, 187)"></option>' +
+                                    '<option value="rgb(240, 102, 102)" label="rgb(240, 102, 102)"></option>' +
+                                    '<option value="rgb(255, 194, 102)" label="rgb(255, 194, 102)"></option>' +
+                                    '<option value="rgb(255, 255, 102)" label="rgb(255, 255, 102)"></option>' +
+                                    '<option value="rgb(102, 185, 102)" label="rgb(102, 185, 102)"></option>' +
+                                    '<option value="rgb(102, 163, 224)" label="rgb(102, 163, 224)"></option>' +
+                                    '<option value="rgb(194, 133, 255)" label="rgb(194, 133, 255)"></option>' +
+                                    '<option value="rgb(136, 136, 136)" label="rgb(136, 136, 136)"></option>' +
+                                    '<option value="rgb(161, 0, 0)" label="rgb(161, 0, 0)"></option>' +
+                                    '<option value="rgb(178, 107, 0)" label="rgb(178, 107, 0)"></option>' +
+                                    '<option value="rgb(178, 178, 0)" label="rgb(178, 178, 0)"></option>' +
+                                    '<option value="rgb(0, 97, 0)" label="rgb(0, 97, 0)"></option>' +
+                                    '<option value="rgb(0, 71, 178)" label="rgb(0, 71, 178)"></option>' +
+                                    '<option value="rgb(107, 36, 178)" label="rgb(107, 36, 178)"></option>' +
+                                    '<option value="rgb(68, 68, 68)" label="rgb(68, 68, 68)"></option>' +
+                                    '<option value="rgb(92, 0, 0)" label="rgb(92, 0, 0)"></option>' +
+                                    '<option value="rgb(102, 61, 0)" label="rgb(102, 61, 0)"></option>' +
+                                    '<option value="rgb(102, 102, 0)" label="rgb(102, 102, 0)"></option>' +
+                                    '<option value="rgb(0, 55, 0)" label="rgb(0, 55, 0)"></option>' +
+                                    '<option value="rgb(0, 41, 102)" label="rgb(0, 41, 102)"></option>' +
+                                    '<option value="rgb(61, 20, 102)" label="rgb(61, 20, 102)"></option>' +
+                                '</select>' +
+                            '</span>' +
+                            '<span class="ql-format-group" ng-if="shouldShow([\'list\', \'bullet\'])">' +
+                                '<span title="{{dict.list}}" class="ql-format-button ql-list" ng-if="shouldShow([\'list\'])"></span>' +
+                                '<span title="{{dict.bullet}}" class="ql-format-button ql-bullet" ng-if="shouldShow([\'bullet\'])"></span>' +
+                            '</span>' +
+                            '<span class="ql-format-group" ng-if="shouldShow([\'align\'])">' +
+                                '<select title="{{dict.textAlign}}" class="ql-align">' +
+                                    '<option value="left" label="{{dict.left}}" selected=""></option>' +
+                                    '<option value="center" label="{{dict.center}}"></option>' +
+                                    '<option value="right" label="{{dict.right}}"></option>' +
+                                    '<option value="justify" label="{{dict.justify}}"></option>' +
+                                '</select>' +
+                            '</span>' +
+                            '<span class="ql-format-group" ng-if="shouldShow([\'link\', \'image\'])">' +
+                                '<span title="{{dict.link}}" class="ql-format-button ql-link" ng-if="shouldShow([\'link\'])"></span>' +
+                                '<span title="{{dict.image}}" class="ql-format-button ql-image" ng-if="shouldShow([\'image\'])"></span>' +
+                            '</span>' +
+                        '</div>' +
+                        '<div class="editor-container"></div>' +
+                        '<input type="text" ng-model="modelLength" ng-if="required" ng-hide="true" ng-pattern="/^([2-9]|[1-9][0-9]+)$/">' +
+                    '</div>' +
+                '</div>');
         }
-      }
-    }]
-  })
-
-  return app.name
-}))
+    ]);
+}).call(this);
